@@ -1,0 +1,334 @@
+---
+title: "Untitled"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Define the question
+Formulating the most relevant marketing strategies that will result in the highest no. of sales (total price including tax)
+
+## The metric for success
+The project will be considered successful when we are able to draw meaningful insights that would be benefit to the marketing department
+
+## The context
+You are a Data analyst at Carrefour Kenya and are currently undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). Your project has been divided into four parts where you'll explore a recent marketing dataset by performing various unsupervised learning techniques and later providing recommendations based on your insights.
+
+## Experimental design taken
+1. Define the question, the metric for success, the context, experimental design taken.
+
+2. Read and explore the given dataset.
+
+3. Define the appropriateness of the available data to answer the given question.
+
+4. Find and deal with outliers, anomalies, and missing data within the dataset.
+
+5. Perform univariate and bivariate analysis recording your observations.
+
+6. From your insights provide a conclusion and recommendation.
+
+
+## The appropriateness of the available data 
+The data provided is sufficient to carry out our analysis.
+
+## Loading the dataset.
+
+```{r}
+# Importing the necessary libraries
+
+library("data.table")
+library("tidyr")
+devtools::install_github("moodymudskipper/cutr")
+library(cutr)
+devtools::install_github("paulponcet/modeest")
+library(modeest)
+install.packages('moments')
+library(moments)
+install.packages('janitor')
+library(janitor)
+install.packages('ggcorrplot')
+library('ggcorrplot')
+install.packages('caret')
+library('caret')
+
+```
+
+```{r}
+mydata = read.csv("http://bit.ly/CarreFourDataset")
+View(mydata)
+
+```
+
+
+## Checking the data
+```{r}
+# Checking for the first 6 rows
+head(mydata)
+
+```
+
+
+```{r}
+# Checking for the first 6 rows
+tail(mydata)
+
+```
+
+
+```{r}
+# Viewing the structure of the dataset
+# ---
+#
+str(mydata)
+
+```
+ We have 1000 rows and 16 columns
+
+
+```{r}
+# Checking whether each column has an appropriate datatype
+
+sapply(mydata, class)
+
+```
+Every column has the correct data type.
+
+```{r}
+# Checking the unique values in the each of the columns
+
+sapply(mydata, unique)
+
+```
+
+## Tidying the Dataset
+
+```{r}
+# Standardize column names by lowering the case using tolower() function
+
+names(mydata) <- tolower(names(mydata))
+
+# display the column names to confirm the changes
+colnames(mydata)
+
+```
+
+
+```{r}
+# Summary of our dataset
+
+summary(mydata)
+
+```
+
+
+```{r}
+# Checking for missing values
+# to calculate the number of na values
+
+cat("the number of na values is",sum(is.na(mydata)))
+
+```
+No missing values
+
+
+```{r}
+# Checking for duplicates
+
+cat("The number of duplicate values are: ",sum(duplicated(mydata)))
+
+```
+No duplicates present
+
+```{r}
+# Dropping unnecessary columns
+mydata$time <- NULL
+mydata$date <- NULL
+mydata$invoice.id <- NULL
+colnames(mydata)
+
+```
+
+
+```{r}
+# Convert data types using as.integer
+
+# Branch
+mydata$branch_enc<-as.integer(as.factor(mydata$branch))
+
+# Customer Type
+mydata$customer.type_enc<-as.integer(as.factor(mydata$customer.type))
+
+# Gender
+mydata$gender_enc<-as.integer(as.factor(mydata$gender))
+
+# Product.line
+mydata$product.line_enc<-as.integer(as.factor(mydata$product.line))
+
+#Payment
+mydata$payment_enc<-as.integer(as.factor(mydata$payment))
+
+```
+
+
+
+```{r}
+# Previewing the new datset
+head(mydata)
+
+```
+
+
+## Dimensionality Reduction
+### Principal Component Analysis (PCA)
+```{r}
+# Selecting integer columns
+
+library(dplyr)
+
+mydata_num <- select_if(mydata,is.numeric)
+str(mydata_num)
+```
+
+
+```{r}
+# Looking for the Standard Deviation
+
+desc_stats <- data.frame(
+  SD = apply(mydata_num, 2, sd)      # Standard deviation
+  )
+
+desc_stats <- round(desc_stats, 1)
+head(desc_stats)
+
+```
+
+
+```{r}
+# Dropping the columns with o SD
+mydata_num$gross.margin.percentage <- NULL
+
+```
+
+
+```{r}
+# now carrying out PCA with center and scale set to true
+mydata_num.pca <- prcomp(mydata_num, center = TRUE, scale. = TRUE)
+
+# previewing our PCA summary
+summary(mydata_num.pca)
+```
+
+
+```{r}
+# Calling str() to have a look at your PCA object
+str(mydata_num.pca)
+```
+
+
+```{r}
+library(ggbiplot)
+ggbiplot(mydata_num.pca)
+
+```
+
+
+```{r}
+# adding more detail to the plot
+ggbiplot(mydata_num.pca, labels = rownames(mydata_num), obs.scale = 1, var.scale = 1)
+
+```
+
+
+### t-Distributed Stochastic Neighbor Embedding (t-SNE)
+```{r}
+# Installing Rtnse package
+# 
+install.packages("Rtsne")
+```
+
+
+```{r}
+# Loading our tnse library
+# 
+library(Rtsne)
+```
+
+
+```{r}
+tsne <- Rtsne(mydata_num, dims = 2, perplexity=30, verbose=TRUE, max_iter = 500)
+```
+
+```{r}
+mydata_num$rating_num = as.numeric(mydata_num$rating)
+
+# Curating the database for analysis 
+# 
+Labels<-mydata_num$rating_num
+mydata_num$rating_num<-as.factor(mydata_num$rating_num)
+
+# For plotting
+colors = rainbow(length(mydata_num$rating_num))
+names(colors) = unique(mydata_num$rating_num)
+
+plot(tsne$Y, t='n', main="tsne")
+text(tsne$Y, labels=mydata_num$rating_num, col=colors[mydata_num$rating_num])
+```
+
+
+### Feature Selection
+#### Filter Method
+```{r}
+library(caret)
+library(corrplot)
+library(lattice)
+```
+
+
+```{r}
+
+# convert vector from character to numeric
+mydata_num$rating_num <- as.numeric(mydata_num$rating_num)
+
+
+# Calculating the correlation matrix
+correlationMatrix <- cor(mydata_num)
+correlationMatrix
+```
+
+
+```{r}
+# Getting the highly correlated variables
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff = 0.75)
+names(mydata_num[,highlyCorrelated])
+
+```
+
+
+```{r}
+# We can remove the variables with a higher correlation 
+# and comparing the results graphically as shown below
+# ---
+# 
+# Removing Redundant Features 
+# ---
+# 
+filter_mydata_num <- mydata_num[-highlyCorrelated]
+head(filter_mydata_num)
+```
+
+```{r}
+# visualizing
+
+par(mfrow = c(1, 2))
+
+# correlation matrix plot of the original dataset
+corrplot(correlationMatrix, order = "hclust")
+
+# correlation matrix plot of the filtered dataset
+corrplot(cor(filter_mydata_num), order = "hclust")
+```
+
